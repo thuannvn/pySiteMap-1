@@ -1,11 +1,13 @@
-# pySiteMap
-** A Simple python sitemap generator** 
+pySiteMap
+===
+**A Simple python sitemap generator** 
 
 ## Introduction ## 
 Generates a sitemap.xml file for a website based on [sitemap protocol](https://sitemap.org).  
+
 ## Usage ##
 
-```bash
+```
 	python sitemap.py <link> : Creates sitemap.xml for the link 
 	python sitemap.py test : Tests sitemap.xml generation for bunch of other websites 
 ```
