@@ -6,6 +6,6 @@ PERMISSIBLE_FILES pdf,ppt,pptx,png,jpg,jpeg,svg
 # include rss/atom feed in sitemap.xml, 1 for yes 
 INCLUDE_FEED 0
 
-# output file 
-OUTPUT sitemap.xml 
+# handles broken urls  
+OUTPUT sitemap.xml
 

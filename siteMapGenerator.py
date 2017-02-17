@@ -1,23 +1,56 @@
 #!/usr/bin/env python
-""" 
-Generates sitemap.xml of a website. 
-Uses Workers to extract site dependencies from url
-""" 
+__author__ = 'Ronak Kogta<rixor786@gmail.com>'
 
-__author__='Ronak Kogta<rixor786@gmail.com>'
+__usage__ = """
+Generates sitemap.xml for any website based on siteamp protocol 
+referred at https://sitemap.org.
+
+Usage: python siteMapGenerator.py --config=config.yml [--help] [--test]
+            --config=config.yml, specifies config file location
+            --help, displays usage message
+            --test, specified when user is experimenting
+""".lstrip() 
+
+import sys; 
+if sys.hexversion < 0x02020000:
+    print 'This script requires Python 2.2 or later.'
+    print 'Currently run with version: %s' % sys.version
+    sys.exit(1);
 
 import requests;
 from bs4 import BeautifulSoup;
 import multiprocessing;
-import copy_reg,types;
 from multiprocessing.dummy import Pool as ThreadPool;
-import lxml;
+import copy_reg,types;
 import os;
-import sys;
 import time;
 
+# Number of parallel workers 
+WORKERS = multiprocessing.cpu_count();
 
-Workers = multiprocessing.cpu_count();
+
+# XML formats
+SITEMAP_HEADER   = \
+'<?xml version = "1.0" encoding = "UTF-8"?>\n' \
+'<urlset \n' \
+'  xmlns = "http://www.sitemaps.org/schemas/sitemap/0.9"\n' \
+'  xmlns:xsi = "http://www.w3.org/2001/XMLSchema-instance"\n' \
+'  xmlns:xhtml = "http://www.w3.org/1999/xhtml"\n' \
+'  xmlns:image = "http://www.google.com/schemas/sitemap-image/1.1"\n' \
+'  xmlns:video = "http://www.google.com/schemas/sitemap-video/1.1"\n' \
+'  xsi:schemaLocation = "\n' \
+'        http://www.sitemaps.org/schemas/sitemap/0.9\n' \
+'        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">\n' \
+
+SITEMAP_FOOTER = '</urlset>\n';
+URL_HEADER = ' <url>\n';
+URL_FOOTER = ' </url>\n';
+URL_ENTRY = '  <loc> %s </loc>\n';
+IMAGE_ENTRY = \
+'    <image:image>\n' \
+'      <image:caption> %(caption)s </image:caption>\n' \
+'      <image:loc> %(imageurl)s </image:loc>\n' \
+'   </image:image>\n' \
 
 # pickle class functions for multiprocessing module  
 def _pickle_method(m):
@@ -29,23 +62,6 @@ def _pickle_method(m):
 copy_reg.pickle(types.MethodType, _pickle_method)
 
 class siteMapGenerator:
-	SITEURL = ""
-	
-	KEEP_ALIVE_SESSION = ""
-	
-	XMLSitemap = '''<?xml version = "1.0" encoding = "UTF-8"?>
-<urlset
-  xmlns = "http://www.sitemaps.org/schemas/sitemap/0.9"
-  xmlns:xsi = "http://www.w3.org/2001/XMLSchema-instance"
-  xmlns:xhtml = "http://www.w3.org/1999/xhtml"
-  xmlns:image = "http://www.google.com/schemas/sitemap-image/1.1"
-  xmlns:video = "http://www.google.com/schemas/sitemap-video/1.1"
-  xsi:schemaLocation = "
-        http://www.sitemaps.org/schemas/sitemap/0.9
-        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
-	'''
-
-	
 	def __init__(self,url):
 		self.SITEURL = url
 		self.KEEP_ALIVE_SESSION = requests.Session()
@@ -57,10 +73,11 @@ class siteMapGenerator:
 		
 		DISTINCT_URL_SET.add(url)
 		
-		# split work  
-		pool = multiprocessing.Pool(Workers); # in processes
-		#pool = ThreadPool(Workers); # in threads 
+		# parallelize workers  
+		pool = multiprocessing.Pool(WORKERS); # in processes
+		#pool = ThreadPool(WORKERS); # in threads 
 		
+		XMLSitemap = ""; 
 		while(len(UNPROCESSED_URL_QUEUE) != 0):
 			# returns a list of [undiscoverd urls,xmlString]
 			 
@@ -68,7 +85,7 @@ class siteMapGenerator:
 			tmpQueue = [];
 			for i in results:
 				tmpQueue += i[0];
-				self.XMLSitemap += i[1]
+				XMLSitemap += i[1]
 
 			# time to process only distinct urls
 			UNPROCESSED_URL_QUEUE = [];
@@ -82,10 +99,11 @@ class siteMapGenerator:
 					
 
 		# Writing XMLsitemap
-		self.XMLSitemap += "\n</urlset>"
-		f = open("sitemap.xml","w");
-		f.write(self.XMLSitemap);
-		f.close();
+		with open('sitemap.xml','w') as f:
+			f.write(SITEMAP_HEADER);
+			f.write(XMLSitemap);
+			f.write(SITEMAP_FOOTER);
+		
 		
 		#close the pool and wait for the work to finish 
 		pool.close() 
@@ -99,9 +117,9 @@ class siteMapGenerator:
 		pageData = pageObject[0];
 		if(pageObject[1] != ""):
 			url = pageObject[1] 
-		tmpXML = ""	
-		# Writing url data
-		tmpXML = tmpXML+'''\n<url>\n\t<loc> '''+url+''' </loc>'''  
+		
+		tmpXML = URL_HEADER; 
+		tmpXML += (URL_ENTRY % str(url));  
 		
 		soup = BeautifulSoup(pageData);
 
@@ -111,14 +129,14 @@ class siteMapGenerator:
 			for a in soup.find_all('img'):
 				src = str(a['src']);
 				src = src.split("?")[0]
-				tmpXML = tmpXML+'''\n\t  <image:image>'''
+				alt=""; 
 				try:
 					alt =  a['alt'];
-					tmpXML = tmpXML+'''\n\t\t<image:caption>'''+str(alt)+'</image:caption>'
 				except:
 					pass;
-				tmpXML = tmpXML+'''\n\t\t<image:loc> '''+str(src)+''' </image:loc>\n\t </image:image>'''		
-		tmpXML = tmpXML+'''\n</url>'''
+				mapattributes = {'imageurl':str(src),'caption':str(alt)};	
+				tmpXML += (IMAGE_ENTRY % mapattributes); 		
+		tmpXML += URL_FOOTER;
 
 		# add distinct urls encountered to the queue
 		allLinks = [];
@@ -196,13 +214,13 @@ if __name__ == '__main__':
     	urls = ["https://jvns.ca"];
     	for u in urls:
     		print "Testing for ", u;
-    		while(Workers != 32):
+    		while(WORKERS != 32):
     			s_time = time.time();
     			testSitemap = siteMapGenerator(u);
     			#testSitemap.init(u);
-    			print Workers," ",time.time()-s_time
-    			Workers*=2;
-    		Workers = multiprocessing.cpu_count();	 
+    			print WORKERS," ",time.time()-s_time
+    			WORKERS*=2;
+    		WORKERS = multiprocessing.cpu_count();	 
     else:
     	sys.exit(-2);		
     

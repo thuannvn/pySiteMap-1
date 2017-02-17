@@ -18,7 +18,6 @@ Generates a sitemap.xml file for a website based on [sitemap protocol](https://s
 ## Benchmark Results ##
 Here is the table for sitemap generation for site [Tom Blomfield](http://tomblomfield.com). These tests were run on 64-bit 2 Core Intel Architecture.  
 
-
 | # of Contexts | Threading Time(s) | Multiprocessing Time (s) |
 |:---:|:---:|:---:|
 |1 |39.99 | 39.599|
@@ -29,7 +28,6 @@ Here is the table for sitemap generation for site [Tom Blomfield](http://tomblom
 
 Benchmarking results for [Julia Evans Blog](https://jvns.ca)
 
- 
 | # of Contexts | Threading Time(s) | Multiprocessing Time (s) |
 |:---:|:---:|:---:|
 |1 |2340 | 2340|
@@ -39,7 +37,8 @@ Benchmarking results for [Julia Evans Blog](https://jvns.ca)
 |16 |370| 265.26|
 
 ## Optimizations ##
-- Used keep alive connections 
+- Used keep alive connections
+- Made code more readable via setting options at config.yml files  
 - Used multiprocessing in place of threading, for the reason  
 	- Python has a **GIL**, a global interpreter lock, which is used to serialize events for threads. Problem with GIL is that it restricts only one active thread running on cpu, and it does not takes care of multi-core architecture. And that might be the one reason to explain above results.
 - can use edge triggering for handlelling downloads per process  	 
