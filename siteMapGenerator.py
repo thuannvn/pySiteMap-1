@@ -24,10 +24,8 @@ from multiprocessing.dummy import Pool as ThreadPool;
 import copy_reg
 import types;
 import time;
-
- 
- 
-
+import re; 
+import logging; 
 
 # XML formats
 SITEMAP_HEADER   = \
@@ -67,16 +65,14 @@ class siteMapGenerator:
 		self.KEEP_ALIVE_SESSION = requests.Session()	# Using Keepalive Connection for target site
 		self.UNPROCESSED_URL_QUEUE = [url];				# Not Visited  URL List
 		self.DISTINCT_URL_SET = set();					# Visited URL List 
-		url = self.url_encoder(url);					# Clean up url 
-		self.DISTINCT_URL_SET.add(url)
 		
 		self.WORKERS = multiprocessing.cpu_count();		#Setting parameters
 		self.DEBUG = None;
 		self.OUTPUT = None;
 		self.BROKER = None;
 		self.PERMISSIBLE_FILES = None;
-		self.INCLUDE_FEED = None;
-		self.POOL = None;
+		self.IGNORE_FILES = None;
+		POOL = None;
 
 		with open('config.yml','r') as f: 
 			configLines=f.readlines()
@@ -87,9 +83,10 @@ class siteMapGenerator:
 
 					if (parameters[0] == "PERMISSIBLE_FILES"):
 						self.PERMISSIBLE_FILES = parameters[1].split('\n')[0].split(",");
+						print self.PERMISSIBLE_FILES
 					
-					if (parameters[0] == "INCLUDE_FEED"):
-						self.INCLUDE_FEED = int(parameters[1].split('\n')[0]);
+					if (parameters[0] == "IGNORE_FILES"):
+						self.IGNORE_FILES = parameters[1].split('\n')[0].split(",");
 
 					if (parameters[0] == "OUTPUT"):
 						self.OUTPUT = str(parameters[1].split('\n')[0]);
@@ -103,29 +100,54 @@ class siteMapGenerator:
 					if (parameters[0] == "BROKER"):
 						self.BROKER = int(parameters[1].split('\n')[0]);
 						if (self.BROKER == 0):
-							self.POOL = multiprocessing.Pool(self.WORKERS);
+							POOL = multiprocessing.Pool(self.WORKERS);
 						else:
-							self.POOL = ThreadPool(self.WORKERS);
+							POOL = ThreadPool(self.WORKERS);
+		
+		url = self.url_encoder(url);					# Clean up url 
+		self.DISTINCT_URL_SET.add(url)
 					
-		self.run();						
-
-
+		self.run(POOL);						
 
 	def url_encoder(self,url):
-		if(url[0] != "/"):
-			url = url+"/"
+		url = url.decode("utf-8");
+
+		if url[0] == '/':										
+				url = self.SITEURL + url 							# relative urls
+		elif not (url[0:4] == 'http'):
+				url = 'https://' + url;								# Making url append with http
+		
+		url = str(re.split('#\?',url)[0]);							# Removing Anchors and query based things
+		
+		url = str(re.split('/$',url)[0]);							# Removing Trailing '/' from the links
+
+		try:														# link of different domain 
+			if (url.split("/")[2] != self.SITEURL.split("/")[2]):
+				pass; 
+		except:
+			return -1;
+
+		for filetype in self.PERMISSIBLE_FILES:						# Checking for permissible files
+			if (len(url.split(filetype)) > 1):
+				if url[-1] == "/":
+					url = str(url[:-1]);
+
+		for filetype in self.IGNORE_FILES:							# Checking for ignore files
+			if (len(url.split(filetype)) > 1):
+				return -1;			
+			
 		return url;
 
-	def run(self):
+	def run(self,POOL):
 		s_time = 0;																# Computing time  
 		if (self.DEBUG):
 			s_time = time.time();
 		else: 
 			del s_time;	
 
-		XMLSitemap = "";								 
+		XMLSitemap = "";
 		while(len(self.UNPROCESSED_URL_QUEUE) != 0):
-			results = self.POOL.map(self.xmlPerURL, self.UNPROCESSED_URL_QUEUE) # [discoverd urls,xmlperURL]
+			results = POOL.map(self.xmlPerURL, self.UNPROCESSED_URL_QUEUE) 		# [discoverd urls,xmlperURL]
 			tmpQueue = [];
 			for i in results:
 				tmpQueue += i[0];
@@ -144,24 +166,16 @@ class siteMapGenerator:
 			f.write(XMLSitemap);
 			f.write(SITEMAP_FOOTER);
 		
-		self.POOL.close()														# Close Parallel Resources 
-		self.POOL.join()
+		POOL.close()														# Close Parallel Resources 
+		POOL.join()
 
 		if (self.DEBUG):
 			print("Total Time taken to generate Sitemap: %f" %(time.time()-s_time));
-	
-	def xmlPerURL(self,url):
-		''' Returns perURL XML string and undiscovered urls list '''
-		pageObject = self.fetchPage(url);
-		pageData = pageObject[0];
-		if(pageObject[1] != ""):
-			url = pageObject[1] 
-		
-		tmpXML = URL_HEADER; 
+
+	def writeXML(self,soup,url):
+		tmpXML = URL_HEADER;					# Writing XML Entry for this url 
 		tmpXML += (URL_ENTRY % str(url));  
 		
-		soup = BeautifulSoup(pageData);
-
 		# add image sources if exist
 		imgSources = soup.find_all('img');
 		if(len(imgSources)>0):
@@ -176,51 +190,28 @@ class siteMapGenerator:
 				mapattributes = {'imageurl':str(src),'caption':str(alt)};	
 				tmpXML += (IMAGE_ENTRY % mapattributes); 		
 		tmpXML += URL_FOOTER;
+		return tmpXML;		
+	
+	def xmlPerURL(self,url):
+		pageObject = self.fetchPage(url);
+		pageData = pageObject[0];
 
-		# add distinct urls encountered to the queue
+		if(pageObject[1] != ""):				# Change url if redirect happens 
+			url = pageObject[1]
+		
+		url = self.url_encoder(url);		
+
+		soup = BeautifulSoup(pageData);	 
+		tmpXML = self.writeXML(soup,url);		# Generates XML sting for this url 
+
 		allLinks = [];
 		for a in soup.find_all('a', href = True):
-			link = a['href']
-
-			# patch up relative links if exists 
-			if (link[0]=='/'):
-				link = self.SITEURL+link
-			elif(len(link.split("http"))==1):
-				link = self.SITEURL+"/"+link;
-				
-			# ignore redirect links, some redirect links will have multiple http in it. 
-			if (len(link.split("http"))>2):
+			link = a['href'];
+			link = self.url_encoder(link);
+			if (link == -1):
 				continue;
-			
-			# if base url belongs to differnt domain 
-			try:
-				if (link.split("/")[2] != self.SITEURL.split("/")[2]):
-					continue; 
-			except:
-				print "Error in processing ", link
-				continue;
-
-			# Removing Anchors
-			link = link.split('#')[0];
-
-			# Removing Query on pages "?"
-			link = link.split('?')[0];
-
-			# checking file types links and adding '/' in the end for html links
-			if(len(link.split('pdf'))>1 or len(link.split('ppt'))>1):
-				a = 'Do nothing'		
-			elif(link[-1] != "/"):
-				link = link+"/"
-
-			# Removing rss/atom from sitemap.xml as they are equivalent
-			if(len(link.split("/rss"))>1 or len(link.split("/atom"))>1):
-				continue;
-
-			# Creating a list for discoverd urls 	
 			allLinks.append(link);
 
-		#print allLinks;
-		#print tmpXML;
 		return [allLinks,tmpXML]		
 
 	''' fetchPage: Extracts the pages from website via requests'''	
@@ -229,9 +220,8 @@ class siteMapGenerator:
 	    try:
 	    	req = self.KEEP_ALIVE_SESSION.get(url);
 	    	if req.history:
-	    		redirectLink = req.url.split("#_=_")[0]
-	    		
-
+	    		print 1
+	    		redirectLink = req.url
 	    except:
 	    	return [-1,redirectLink];
 		

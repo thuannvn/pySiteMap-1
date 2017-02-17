@@ -3,8 +3,8 @@
 # mark these resources into sitemap.xml, otherwise ignore them   
 PERMISSIBLE_FILES pdf,ppt,pptx,png,jpg,jpeg,svg
 
-# Include rss/atom feed in sitemap.xml, 1 for yes 
-INCLUDE_FEED 0
+# Ignore these files into rss  
+IGNORE_FILES rss,atom,xml
 
 # Parallel Workers 
 WORKERS 2
@@ -13,7 +13,7 @@ WORKERS 2
 BROKER 0
 
 # Debug 
-DEBUG 1
+DEBUG 0
 
 # handles broken urls  
 OUTPUT sitemap.xml
