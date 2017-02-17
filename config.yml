@@ -1,10 +1,16 @@
 # Configuration file for setting up your sitemap.xml
 
 # mark these resources into sitemap.xml, otherwise ignore them   
-PERMISSIBLE_FILES pdf,ppt,pptx,png,jpg,jpeg,svg   
+PERMISSIBLE_FILES pdf,ppt,pptx,png,jpg,jpeg,svg
 
-# include rss/atom feed in sitemap.xml, 1 for yes 
+# Include rss/atom feed in sitemap.xml, 1 for yes 
 INCLUDE_FEED 0
+
+# Parallelize Broker, 0 for process based parallelism and 1 for thread based parallelism  
+BROKER 0
+
+# Debug 
+DEBUG 1
 
 # handles broken urls  
 OUTPUT sitemap.xml

@@ -52,6 +52,7 @@ IMAGE_ENTRY = \
 '      <image:loc> %(imageurl)s </image:loc>\n' \
 '   </image:image>\n' \
 
+
 # pickle class functions for multiprocessing module  
 def _pickle_method(m):
     if m.im_self is None:
@@ -63,51 +64,78 @@ copy_reg.pickle(types.MethodType, _pickle_method)
 
 class siteMapGenerator:
 	def __init__(self,url):
-		self.SITEURL = url
-		self.KEEP_ALIVE_SESSION = requests.Session()
-		UNPROCESSED_URL_QUEUE = [url];
-		DISTINCT_URL_SET = set();
-		
+		self.SITEURL = url 								# Setting url for a website classwide
+		self.KEEP_ALIVE_SESSION = requests.Session()	# Using Keepalive Connection for target site
+		self.UNPROCESSED_URL_QUEUE = [url];				# Not Visited  URL List
+		self.DISTINCT_URL_SET = set();					# Visited URL List 
+		url = self.url_encoder(url);					# Clean up url 
+		self.DISTINCT_URL_SET.add(url)
+
+		with open('config.yml','r') as f: 
+			configLines=f.readline()
+			for line in configLines:
+				if (line[0] != '#' or line[0] != '\n'):
+					parameters = line.split(" ");
+
+					if (parameters[0] == "PERMISSIBLE_FILES"):
+						self.PERMISSIBLE_FILES = parameters[1].split('\n')[0].split(",");
+					
+					elif (parameters[0] == "IGNORE_FEED"):
+						self.IGNORE_FEED = int(parameters[1].split('\n')[0]);
+
+					elif (parameters[0] == "OUTPUT"):
+						self.OUTPUT = str(parameters[1].split('\n')[0]);
+
+					elif (parameters[0] == "DEBUG"):
+						self.DEBUG = int(parameters[1].split('\n')[0]);
+
+					elif (parameters[0] == "BROKER"):
+						BROKER = int(parameters[1].split('\n')[0]);
+						if (BROKER == 0):
+							self.POOL = multiprocessing.Pool(WORKERS);
+						else:
+							self.POOL = ThreadPool(WORKERS);
+
+	def url_encoder(self,url):
 		if(url[0] != "/"):
 			url = url+"/"
-		
-		DISTINCT_URL_SET.add(url)
-		
-		# parallelize workers  
-		pool = multiprocessing.Pool(WORKERS); # in processes
-		#pool = ThreadPool(WORKERS); # in threads 
-		
-		XMLSitemap = ""; 
-		while(len(UNPROCESSED_URL_QUEUE) != 0):
-			# returns a list of [undiscoverd urls,xmlString]
-			 
-			results = pool.map(self.xmlPerURL, UNPROCESSED_URL_QUEUE)
+		return url;
+
+	def run(self):
+		s_time = 0; 
+		if (self.DEBUG):
+			s_time = time.time();
+		else: 
+			del s_time;	
+
+		XMLSitemap = "";								 
+		while(len(self.UNPROCESSED_URL_QUEUE) != 0):
+			results = self.POOL.map(self.xmlPerURL, self.UNPROCESSED_URL_QUEUE) # [discoverd urls,xmlperURL]
 			tmpQueue = [];
 			for i in results:
 				tmpQueue += i[0];
 				XMLSitemap += i[1]
 
-			# time to process only distinct urls
-			UNPROCESSED_URL_QUEUE = [];
-			
+			self.UNPROCESSED_URL_QUEUE = []; 									# Only process distinct urls 
 			for i in tmpQueue:
-				if i in DISTINCT_URL_SET:
+				if i in self.DISTINCT_URL_SET:
 					continue;
 				else: 
-					DISTINCT_URL_SET.add(i);
-					UNPROCESSED_URL_QUEUE.append(i)
-					
-
-		# Writing XMLsitemap
-		with open('sitemap.xml','w') as f:
+					self.DISTINCT_URL_SET.add(i);
+					self.UNPROCESSED_URL_QUEUE.append(i)
+		
+		with open(self.OUTPUT,'w') as f:										# Writing XML to the file
 			f.write(SITEMAP_HEADER);
 			f.write(XMLSitemap);
 			f.write(SITEMAP_FOOTER);
 		
-		
-		#close the pool and wait for the work to finish 
-		pool.close() 
-		pool.join()
+		self.POOL.close()														# Close Parallel Resources 
+		self.POOL.join()
+
+		if (self.DEBUG):
+			print("Total Time taken to generate Sitemap: %f" %(time.time()-s_time));
+
+
 		
 	
 	
@@ -206,9 +234,9 @@ if __name__ == '__main__':
     
     # Checking for url	
     if (len(sys.argv[1].split("http"))>1):
-    	s_time = time.time();
+    	
     	itStartsHere = siteMapGenerator(sys.argv[1]);
-    	print "Total Time taken:",time.time()-s_time;
+    	
     	sys.exit();
     elif (sys.argv[1]=="test"):
     	urls = ["https://jvns.ca"];
