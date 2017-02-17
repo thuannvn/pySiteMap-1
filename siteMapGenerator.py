@@ -61,12 +61,12 @@ copy_reg.pickle(types.MethodType, _pickle_method)
 
 class siteMapGenerator:
 	def __init__(self,url):
-		self.SITEURL = url 								# Setting url for a website classwide
+		self.SITEURL = url 				# Setting url for a website classwide
 		self.KEEP_ALIVE_SESSION = requests.Session()	# Using Keepalive Connection for target site
-		self.UNPROCESSED_URL_QUEUE = [url];				# Not Visited  URL List
-		self.DISTINCT_URL_SET = set();					# Visited URL List 
+		self.UNPROCESSED_URL_QUEUE = [url];		# Not Visited  URL List
+		self.DISTINCT_URL_SET = set();			# Visited URL List 
 		
-		self.WORKERS = multiprocessing.cpu_count();		#Setting parameters
+		self.WORKERS = multiprocessing.cpu_count();	#Setting parameters
 		self.DEBUG = None;
 		self.OUTPUT = None;
 		self.BROKER = None;
@@ -83,8 +83,7 @@ class siteMapGenerator:
 
 					if (parameters[0] == "PERMISSIBLE_FILES"):
 						self.PERMISSIBLE_FILES = parameters[1].split('\n')[0].split(",");
-						print self.PERMISSIBLE_FILES
-					
+										
 					if (parameters[0] == "IGNORE_FILES"):
 						self.IGNORE_FILES = parameters[1].split('\n')[0].split(",");
 
@@ -104,7 +103,7 @@ class siteMapGenerator:
 						else:
 							POOL = ThreadPool(self.WORKERS);
 		
-		url = self.url_encoder(url);					# Clean up url 
+		url = self.url_encoder(url);		# Clean up url 
 		self.DISTINCT_URL_SET.add(url)
 					
 		self.run(POOL);						
@@ -113,33 +112,33 @@ class siteMapGenerator:
 		url = url.decode("utf-8");
 
 		if url[0] == '/':										
-				url = self.SITEURL + url 							# relative urls
+				url = self.SITEURL + url 						# relative urls
 		elif not (url[0:4] == 'http'):
-				url = 'https://' + url;								# Making url append with http
+				url = 'https://' + url;							# Making url append with http
 		
-		url = str(re.split('#\?',url)[0]);							# Removing Anchors and query based things
-		
-		url = str(re.split('/$',url)[0]);							# Removing Trailing '/' from the links
-
-		try:														# link of different domain 
-			if (url.split("/")[2] != self.SITEURL.split("/")[2]):
-				pass; 
-		except:
-			return -1;
-
-		for filetype in self.PERMISSIBLE_FILES:						# Checking for permissible files
+		for filetype in self.PERMISSIBLE_FILES:							# Checking for permissible files
 			if (len(url.split(filetype)) > 1):
 				if url[-1] == "/":
 					url = str(url[:-1]);
 
 		for filetype in self.IGNORE_FILES:							# Checking for ignore files
 			if (len(url.split(filetype)) > 1):
-				return -1;			
+				return -1;
+
+		if (url.split("/")[2] == self.SITEURL.split("/")[2]) 					# link of another domain
+				pass; 
+		else:
+			return -1;
+
+		url = str(re.split('[#\?]',url)[0]);							# Removing Anchors and query based things
+		
+		url = str(re.split('/$',url)[0]);							# Removing Trailing '/' from the links
+						
 			
 		return url;
 
 	def run(self,POOL):
-		s_time = 0;																# Computing time  
+		s_time = 0;										# Computing time  
 		if (self.DEBUG):
 			s_time = time.time();
 		else: 
@@ -147,13 +146,15 @@ class siteMapGenerator:
 
 		XMLSitemap = "";
 		while(len(self.UNPROCESSED_URL_QUEUE) != 0):
-			results = POOL.map(self.xmlPerURL, self.UNPROCESSED_URL_QUEUE) 		# [discoverd urls,xmlperURL]
+			
+			results = POOL.map(self.xmlPerURL, self.UNPROCESSED_URL_QUEUE) 			# [discoverd urls,xmlperURL]
+				
 			tmpQueue = [];
 			for i in results:
 				tmpQueue += i[0];
 				XMLSitemap += i[1]
 
-			self.UNPROCESSED_URL_QUEUE = []; 									# Only process distinct urls 
+			self.UNPROCESSED_URL_QUEUE = []; 						# Only process distinct urls 
 			for i in tmpQueue:
 				if i in self.DISTINCT_URL_SET:
 					continue;
@@ -161,19 +162,19 @@ class siteMapGenerator:
 					self.DISTINCT_URL_SET.add(i);
 					self.UNPROCESSED_URL_QUEUE.append(i)
 		
-		with open(self.OUTPUT,'w') as f:										# Writing XML to the file
+		with open(self.OUTPUT,'w') as f:							# Writing XML to the file
 			f.write(SITEMAP_HEADER);
 			f.write(XMLSitemap);
 			f.write(SITEMAP_FOOTER);
 		
-		POOL.close()														# Close Parallel Resources 
+		POOL.close()										# Close Parallel Resources 
 		POOL.join()
 
 		if (self.DEBUG):
 			print("Total Time taken to generate Sitemap: %f" %(time.time()-s_time));
 
 	def writeXML(self,soup,url):
-		tmpXML = URL_HEADER;					# Writing XML Entry for this url 
+		tmpXML = URL_HEADER;									# Writing XML Entry for this url 
 		tmpXML += (URL_ENTRY % str(url));  
 		
 		# add image sources if exist
@@ -196,18 +197,19 @@ class siteMapGenerator:
 		pageObject = self.fetchPage(url);
 		pageData = pageObject[0];
 
-		if(pageObject[1] != ""):				# Change url if redirect happens 
+		if(pageObject[1] != ""):								# Change url if redirect happens 
 			url = pageObject[1]
 		
 		url = self.url_encoder(url);		
 
 		soup = BeautifulSoup(pageData);	 
-		tmpXML = self.writeXML(soup,url);		# Generates XML sting for this url 
+		tmpXML = self.writeXML(soup,url);							# Generates XML sting for this url 
 
 		allLinks = [];
 		for a in soup.find_all('a', href = True):
 			link = a['href'];
 			link = self.url_encoder(link);
+			
 			if (link == -1):
 				continue;
 			allLinks.append(link);
@@ -220,7 +222,6 @@ class siteMapGenerator:
 	    try:
 	    	req = self.KEEP_ALIVE_SESSION.get(url);
 	    	if req.history:
-	    		print 1
 	    		redirectLink = req.url
 	    except:
 	    	return [-1,redirectLink];
