@@ -6,6 +6,9 @@ PERMISSIBLE_FILES pdf,ppt,pptx,png,jpg,jpeg,svg
 # Include rss/atom feed in sitemap.xml, 1 for yes 
 INCLUDE_FEED 0
 
+# Parallel Workers 
+WORKERS 2
+
 # Parallelize Broker, 0 for process based parallelism and 1 for thread based parallelism  
 BROKER 0
 

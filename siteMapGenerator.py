@@ -21,12 +21,12 @@ import requests;
 from bs4 import BeautifulSoup;
 import multiprocessing;
 from multiprocessing.dummy import Pool as ThreadPool;
-import copy_reg,types;
-import os;
+import copy_reg
+import types;
 import time;
 
-# Number of parallel workers 
-WORKERS = multiprocessing.cpu_count();
+ 
+ 
 
 
 # XML formats
@@ -59,7 +59,6 @@ def _pickle_method(m):
         return getattr, (m.im_class, m.im_func.func_name)
     else:
         return getattr, (m.im_self, m.im_func.func_name)
-
 copy_reg.pickle(types.MethodType, _pickle_method)
 
 class siteMapGenerator:
@@ -70,9 +69,18 @@ class siteMapGenerator:
 		self.DISTINCT_URL_SET = set();					# Visited URL List 
 		url = self.url_encoder(url);					# Clean up url 
 		self.DISTINCT_URL_SET.add(url)
+		
+		self.WORKERS = multiprocessing.cpu_count();		#Setting parameters
+		self.DEBUG = None;
+		self.OUTPUT = None;
+		self.BROKER = None;
+		self.PERMISSIBLE_FILES = None;
+		self.INCLUDE_FEED = None;
+		self.POOL = None;
 
 		with open('config.yml','r') as f: 
-			configLines=f.readline()
+			configLines=f.readlines()
+			
 			for line in configLines:
 				if (line[0] != '#' or line[0] != '\n'):
 					parameters = line.split(" ");
@@ -80,21 +88,28 @@ class siteMapGenerator:
 					if (parameters[0] == "PERMISSIBLE_FILES"):
 						self.PERMISSIBLE_FILES = parameters[1].split('\n')[0].split(",");
 					
-					elif (parameters[0] == "IGNORE_FEED"):
-						self.IGNORE_FEED = int(parameters[1].split('\n')[0]);
+					if (parameters[0] == "INCLUDE_FEED"):
+						self.INCLUDE_FEED = int(parameters[1].split('\n')[0]);
 
-					elif (parameters[0] == "OUTPUT"):
+					if (parameters[0] == "OUTPUT"):
 						self.OUTPUT = str(parameters[1].split('\n')[0]);
 
-					elif (parameters[0] == "DEBUG"):
+					if (parameters[0] == "DEBUG"):
 						self.DEBUG = int(parameters[1].split('\n')[0]);
 
-					elif (parameters[0] == "BROKER"):
-						BROKER = int(parameters[1].split('\n')[0]);
-						if (BROKER == 0):
-							self.POOL = multiprocessing.Pool(WORKERS);
+					if (parameters[0] == "WORKERS"):
+						self.WORKERS = int(parameters[1].split('\n')[0]);	
+
+					if (parameters[0] == "BROKER"):
+						self.BROKER = int(parameters[1].split('\n')[0]);
+						if (self.BROKER == 0):
+							self.POOL = multiprocessing.Pool(self.WORKERS);
 						else:
-							self.POOL = ThreadPool(WORKERS);
+							self.POOL = ThreadPool(self.WORKERS);
+					
+		self.run();						
+
+
 
 	def url_encoder(self,url):
 		if(url[0] != "/"):
@@ -102,7 +117,7 @@ class siteMapGenerator:
 		return url;
 
 	def run(self):
-		s_time = 0; 
+		s_time = 0;																# Computing time  
 		if (self.DEBUG):
 			s_time = time.time();
 		else: 
@@ -134,10 +149,6 @@ class siteMapGenerator:
 
 		if (self.DEBUG):
 			print("Total Time taken to generate Sitemap: %f" %(time.time()-s_time));
-
-
-		
-	
 	
 	def xmlPerURL(self,url):
 		''' Returns perURL XML string and undiscovered urls list '''
