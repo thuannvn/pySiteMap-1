@@ -12,8 +12,8 @@ Usage: python siteMapGenerator.py --config=config.yml [--help] [--test]
 """.lstrip() 
 
 import sys; 
-if sys.hexversion < 0x02020000:
-    print 'This script requires Python 2.2 or later.'
+if sys.hexversion < 0x034016496:
+    print 'This script requires Python 2.7 or later.'
     print 'Currently run with version: %s' % sys.version
     sys.exit(1);
 
@@ -125,7 +125,7 @@ class siteMapGenerator:
 			if (len(url.split(filetype)) > 1):
 				return -1;
 
-		if (url.split("/")[2] == self.SITEURL.split("/")[2]) 					# link of another domain
+		if (url.split("/")[2] == self.SITEURL.split("/")[2]): 					# link of another domain
 				pass; 
 		else:
 			return -1;
@@ -221,12 +221,13 @@ class siteMapGenerator:
 	    redirectLink = ""
 	    try:
 	    	req = self.KEEP_ALIVE_SESSION.get(url);
+	    	lastmod = req.headers['last-modified']
 	    	if req.history:
 	    		redirectLink = req.url
 	    except:
-	    	return [-1,redirectLink];
+	    	return [-1,redirectLink,""];
 		
-	    return [req.text,redirectLink];    
+	    return [req.text,redirectLink,lastmod];    
 	    
 if __name__ == '__main__':
     
