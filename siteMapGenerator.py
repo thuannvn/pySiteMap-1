@@ -12,7 +12,7 @@ Usage: python siteMapGenerator.py --config=config.yml [--help] [--test]
 """.lstrip() 
 
 import sys; 
-if sys.hexversion < 0x034016496:
+if sys.version_info < (2, 7):
     print 'This script requires Python 2.7 or later.'
     print 'Currently run with version: %s' % sys.version
     sys.exit(1);
@@ -25,7 +25,8 @@ import copy_reg
 import types;
 import time;
 import re; 
-import logging; 
+import logging;
+import datetime; 
 
 # XML formats
 SITEMAP_HEADER   = \
@@ -221,13 +222,13 @@ class siteMapGenerator:
 	    redirectLink = ""
 	    try:
 	    	req = self.KEEP_ALIVE_SESSION.get(url);
-	    	lastmod = req.headers['last-modified']
+	    	
 	    	if req.history:
 	    		redirectLink = req.url
 	    except:
-	    	return [-1,redirectLink,""];
+	    	return [-1,redirectLink];
 		
-	    return [req.text,redirectLink,lastmod];    
+	    return [req.text,redirectLink];    
 	    
 if __name__ == '__main__':
     
