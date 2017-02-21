@@ -7,7 +7,8 @@ Generates a sitemap.xml file for a website based on [sitemap protocol](https://s
 
 ## Usage ##
 
-```usage: pySiteMap.py [-h] -u URL [-d DEBUG] [-o OUTPUT] [-c CONFIG]
+```
+usage: pySiteMap.py [-h] -u URL [-d DEBUG] [-o OUTPUT] [-c CONFIG]
 
 Generates sitemap for any website based on siteamp protocol given at
 https://sitemap.org
