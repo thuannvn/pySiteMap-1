@@ -34,12 +34,11 @@ copy_reg.pickle(types.MethodType, _pickle_method)
 class siteMapGenerator:
 	def __init__(self,args):
 		self.DEBUG_MODE = int(args.debug); 
-		self.OUTPUT = args.output;
-		self.WORKERS = multiprocessing.cpu_count();	#Setting parameters
-		self.BROKER = None;
-		self.PERMISSIBLE_FILES = None;
-		self.IGNORE_FILES = None;
-		POOL = None;
+		self.dumpfile = args.output;
+		self.workers = multiprocessing.cpu_count();	#Setting parameters
+		self.broker = None;
+		self.permissible_files = None;
+		self.ignore_ext = None;
 		configFile = args.config;
 
 		with open(configFile,'r') as f: 
@@ -48,48 +47,41 @@ class siteMapGenerator:
 					parameters = line.split(" ");
 
 					if (parameters[0] == "PERMISSIBLE_FILES"):
-						self.PERMISSIBLE_FILES = parameters[1].split('\n')[0].split(",");
+						self.permissible_files = parameters[1].split('\n')[0].split(",");
 										
 					if (parameters[0] == "IGNORE_FILES"):
-						self.IGNORE_FILES = parameters[1].split('\n')[0].split(",");
+						self.ignore_ext = parameters[1].split('\n')[0].split(",");
 
 					if (parameters[0] == "WORKERS"):
-						self.WORKERS = int(parameters[1].split('\n')[0]);	
+						self.workers = int(parameters[1].split('\n')[0]);	
 
 					if (parameters[0] == "BROKER"):
-						self.BROKER = int(parameters[1].split('\n')[0]);
-						if (self.BROKER == 0):
-							POOL = multiprocessing.Pool(self.WORKERS);
-						else:
-							POOL = ThreadPool(self.WORKERS);
-
-		self.SITEURL = args.url;
-		self.DISTINCT_URL_SET = set();			# Visited URL List 					
-		self.DISTINCT_URL_SET.add(self.SITEURL);
-		self.KEEP_ALIVE_SESSION = requests.Session()	# Using Keepalive Connection for target site
-		self.UNPROCESSED_URL_QUEUE = [self.SITEURL];		# Not Visited  URL List
+						self.broker = int(parameters[1].split('\n')[0]);
 		
-		#sys.exit(1);			
-		self.run(POOL);						
+		self.siteurl = args.url;
+		self.visited_url_set = set();			 					
+		self.visited_url_set.add(self.siteurl);
+		self.keep_alive_site_session = requests.Session()	
+		self.not_visited_urls = [self.siteurl];		
 
 	def url_encoder(self,url):
 		url = url.decode("utf-8");
 
 		if url[0] == '/':										
-				url = self.SITEURL + url 						# relative urls
+				url = self.siteurl + url 						# relative urls
 		elif not (url[0:4] == 'http'):
 				url = 'https://' + url;							# Making url append with http
 		
-		for filetype in self.PERMISSIBLE_FILES:							# Checking for permissible files
+		for filetype in self.permissible_files:							# Checking for permissible files
 			if (len(url.split(filetype)) > 1):
 				if url[-1] == "/":
 					url = str(url[:-1]);
 
-		for filetype in self.IGNORE_FILES:							# Checking for ignore files
+		for filetype in self.ignore_ext:							# Checking for ignore files
 			if (len(url.split(filetype)) > 1):
 				return -1;
 
-		if (url.split("/")[2] == self.SITEURL.split("/")[2]): 					# link of another domain
+		if (url.split("/")[2] == self.siteurl.split("/")[2]): 					# link of another domain
 				pass; 
 		else:
 			return -1;
@@ -101,45 +93,46 @@ class siteMapGenerator:
 			
 		return url;
 
-	def run(self,POOL):
-		s_time = 0;										# Computing time  
-		if (self.DEBUG_MODE):
-			s_time = time.time();
-		else: 
-			del s_time;	
-
-		XMLSitemap = "";
-		while(len(self.UNPROCESSED_URL_QUEUE) != 0):
-			
-			results = POOL.map(self.xmlPerURL, self.UNPROCESSED_URL_QUEUE) 			# [discoverd urls,xmlperURL]
+	def run(self):
+		if (self.broker == 0):
+				broker_pool = multiprocessing.Pool(self.workers);
+		else:
+				broker_pool = ThreadPool(self.workers);
 				
+		if (self.DEBUG_MODE):
+			start_time = time.time();
+		
+		XMLSitemap = "";
+		while(len(self.not_visited_urls) != 0):
+			
+			results = broker_pool.map(self.process_each_url, self.not_visited_urls) 
 			tmpQueue = [];
 			for i in results:
 				tmpQueue += i[0];
 				XMLSitemap += i[1]
 
-			self.UNPROCESSED_URL_QUEUE = []; 						# Only process distinct urls 
+			self.not_visited_urls = []; 						# Only process distinct urls 
 			for i in tmpQueue:
-				if i in self.DISTINCT_URL_SET:
+				if i in self.visited_url_set:
 					continue;
 				else: 
-					self.DISTINCT_URL_SET.add(i);
-					self.UNPROCESSED_URL_QUEUE.append(i)
+					self.visited_url_set.add(i);
+					self.not_visited_urls.append(i)
 		
-		with open(self.OUTPUT,'w') as f:							# Writing XML to the file
+		with open(self.dumpfile,'w') as f:							# Writing XML to the file
 			f.write(SITEMAP_HEADER);
 			f.write(XMLSitemap);
 			f.write(SITEMAP_FOOTER);
 		
-		POOL.close()										# Close Parallel Resources 
-		POOL.join()
+		broker_pool.close()										# Close Parallel Resources 
+		broker_pool.join()
 
 		if (self.DEBUG_MODE):
-			print("Total Time taken to generate Sitemap: %f" %(time.time()-s_time));
+			print("Total Time taken to generate Sitemap: %f" %(time.time()-start_time));
 
-	def writeXML(self,soup,url):
-		tmpXML = URL_HEADER;									# Writing XML Entry for this url 
-		tmpXML += (URL_ENTRY % str(url));  
+	def xml_per_url(self,soup,url):
+		url_xml = URL_HEADER;									# Writing XML Entry for this url 
+		url_xml += (URL_ENTRY % str(url));  
 		
 		# add image sources if exist
 		imgSources = soup.find_all('img');
@@ -153,12 +146,12 @@ class siteMapGenerator:
 				except:
 					pass;
 				mapattributes = {'imageurl':str(src),'caption':str(alt)};	
-				tmpXML += (IMAGE_ENTRY % mapattributes); 		
-		tmpXML += URL_FOOTER;
-		return tmpXML;		
+				url_xml += (IMAGE_ENTRY % mapattributes); 		
+		url_xml += URL_FOOTER;
+		return url_xml;		
 	
-	def xmlPerURL(self,url):
-		pageObject = self.fetchPage(url);
+	def process_each_url(self,url):
+		pageObject = self.fetch_url(url);
 		pageData = pageObject[0];
 
 		if(pageObject[1] != ""):								# Change url if redirect happens 
@@ -167,7 +160,7 @@ class siteMapGenerator:
 		url = self.url_encoder(url);		
 
 		soup = BeautifulSoup(pageData);	 
-		tmpXML = self.writeXML(soup,url);							# Generates XML sting for this url 
+		url_xml = self.xml_per_url(soup,url);							# Generates XML sting for this url 
 
 		allLinks = [];
 		for a in soup.find_all('a', href = True):
@@ -178,13 +171,12 @@ class siteMapGenerator:
 				continue;
 			allLinks.append(link);
 
-		return [allLinks,tmpXML]		
-
-	''' fetchPage: Extracts the pages from website via requests'''	
-	def fetchPage(self,url):
+		return [allLinks,url_xml]		
+	
+	def fetch_url(self,url):
 	    redirectLink = ""
 	    try:
-	    	req = self.KEEP_ALIVE_SESSION.get(url);
+	    	req = self.keep_alive_site_session.get(url);
 	    	
 	    	if req.history:
 	    		redirectLink = req.url
@@ -207,6 +199,7 @@ if __name__ == '__main__':
 	args = configure_options.parse_args();
 
 	init_sitemap = siteMapGenerator(args);
+	init_sitemap.run();
     	
    		
     

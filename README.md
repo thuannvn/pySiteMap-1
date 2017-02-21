@@ -7,10 +7,21 @@ Generates a sitemap.xml file for a website based on [sitemap protocol](https://s
 
 ## Usage ##
 
-```
-	python sitemap.py <link> : Creates sitemap.xml for the link 
-	python sitemap.py test : Tests sitemap.xml generation for bunch of other websites 
-```
+```usage: pySiteMap.py [-h] -u URL [-d DEBUG] [-o OUTPUT] [-c CONFIG]
+
+Generates sitemap for any website based on siteamp protocol given at
+https://sitemap.org
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -u URL, --url URL     Enter url
+  -d DEBUG, --debug DEBUG
+                        Debug Mode
+  -o OUTPUT, --output OUTPUT
+                        Output file
+  -c CONFIG, --config CONFIG
+                        Configuration file
+ ```
 
 * Requirements 
 	+ requests, bs4, multiprocessing
