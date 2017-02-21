@@ -1,8 +1,5 @@
 pySiteMap
 ===
-**A Simple python sitemap generator** 
-
-## Introduction 
 Generates a sitemap.xml file for a website based on [sitemap protocol](https://sitemap.org).  
 
 ## Usage ##
@@ -24,7 +21,7 @@ optional arguments:
                         Configuration file
  ```
 
-* Requirements 
+* Dependencies 
 	+ requests, bs4, multiprocessing
 
 ## Benchmark Results ##
