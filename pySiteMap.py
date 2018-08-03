@@ -92,7 +92,7 @@ class siteMapGenerator:
 		else:
 			return -1;
 
-		url = str(re.split('[#\?]',url)[0]);							# Removing Anchors and query based things
+		# url = str(re.split('[#\?]',url)[0]);							# Removing Anchors and query based things
 		
 		url = str(re.split('/$',url)[0]);							# Removing Trailing '/' from the links
 						
